@@ -1,0 +1,18 @@
+/* src/floor/1st/first_seat.css */
+
+.seat {
+    width: 12vw !important;
+    height: 4vh;
+    margin: 4px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #f8f8f8;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  
+  .seat:hover {
+    background-color: #ddd;
+  }
+  

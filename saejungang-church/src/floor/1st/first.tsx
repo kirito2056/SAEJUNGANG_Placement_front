@@ -1,24 +1,37 @@
+// src/floor/1st/first.tsx
 import React from 'react';
+import Seat from './first_seat';
 import './first.css';
 
-const Floor1Page: React.FC = () => {
+const FirstFloor: React.FC = () => {
+  const renderSeats = (col: number) => {
+    const rows = (col === 1 || col === 6) ? 8 : (col === 3 || col === 4) ? 14 : 13;
+    return (
+      <div className="seat-column" key={col}>
+        {Array.from({ length: rows }, (_, row) => {
+          const seatNumber = `${col}-${row + 1}`;
+          return <Seat key={seatNumber} seatNumber={seatNumber} />;
+        })}
+      </div>
+    );
+  };
+
   return (
-    <div>
-      <h1>1층</h1>
-      <div className="floor-1-layout">
-        <div className="stage">
-          <div className="stage-choir">성가대석</div>
-          <div className="stage-pulpit">설교단상</div>
-        </div>
-        <div className="seats-container-1f">
-          <div className="seat-section">
-            <div className="seat">좌석 1-1</div>
-            <div className="seat">좌석 1-2</div>
-          </div>
+    <div className="first-floor-container">
+      <div className="stage-container">
+        <div className="choir">성가대석 (좌)</div>
+        <div className="podium">설교단상</div>
+        <div className="choir">성가대석 (우)</div>
+      </div>
+      <div className="seat-group">
+        <div className="seat-block seat-block-left">{[1, 2].map(renderSeats)}</div>
+        <div className='center-and-right seat-group'>
+          <div className="seat-block seat-block-center">{[3, 4].map(renderSeats)}</div>
+          <div className="seat-block seat-block-right">{[5, 6].map(renderSeats)}</div>
         </div>
       </div>
     </div>
   );
 };
 
-export default Floor1Page;
+export default FirstFloor;

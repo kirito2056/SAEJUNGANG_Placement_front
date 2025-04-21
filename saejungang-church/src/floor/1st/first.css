@@ -1,0 +1,63 @@
+/* src/floor/1st/first.css */
+
+.first-floor-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem;
+  }
+  
+  .stage-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 2rem;
+    gap: 1rem;
+  }
+  
+  .choir,
+  .podium {
+    padding: 0.5rem 1rem;
+    background-color: #eee;
+    font-weight: bold; 
+    height: 8vh;
+  }
+
+  .choir {
+    width: 18vw;
+  }
+
+  .podium {
+    width: 19vw;
+  }
+  
+  .seat-group {
+    display: flex;
+    gap: 2rem;
+  }
+  
+  .seat-block {
+    display: flex;
+    flex-direction: row;
+    gap: 1.5rem;
+  }
+  
+  .seat-column {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .seat-block-left {
+    transform: rotate(2deg);
+    transform-origin: 100% 0;
+  }
+  
+  .seat-block-right {
+    transform: rotate(-2deg);
+    transform-origin: 0 100%;
+  }
+
+  .center-and-right {
+    gap: 3.5rem;
+  }
