@@ -1,4 +1,135 @@
 /* src/floor/2nd/second.css */
 .floor2-container {
-    padding: 20px;
-  }
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* 내부 요소 가운데 정렬 추가 */
+  padding: 20px;
+  margin: 0 auto; /* 가운데 정렬 유지 */
+  width: 100%; /* 너비 100% 추가 */
+  /* max-width: 1200px; /* 최대 너비 설정 제거 */
+}
+
+.floor-layout {
+  max-width: 100%;
+  width: 100%;
+  border-radius: 5px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+h1 {
+  margin-bottom: 20px;
+}
+
+.level-view-area { /* 1층 뷰 영역 스타일 수정 (유지) */
+  background-color: transparent;
+  border: none;
+  padding: 0;
+  margin-bottom: 20px;
+  width: 80%;
+  overflow: hidden;
+}
+
+.view-label { /* view-label 스타일 (유지) */
+  font-style: italic;
+  color: #777;
+  margin-bottom: 10px;
+}
+
+.second-floor-seats { /* 좌석 전체 컨테이너 */
+  position: absolute;
+  top: 20vh;
+  display: flex;
+  flex-direction: column; /* 세로로 배치 */
+  align-items: center; /* 세로 배치 시 가운데 정렬 */
+  gap: 20px; /* 예시: 위쪽 섹션과 중앙 섹션 간의 간격 */
+  width: 100%;
+  padding: 20px 0;
+}
+
+/* --- top-sections 스타일 추가 --- */
+.top-sections {
+  display: flex;
+  flex-direction: row; /* left/right 섹션을 가로로 배치 */
+  justify-content: space-between; /* 양 끝으로 정렬 */
+  align-items: flex-start; /* 좌석들이 위에서부터 채워지도록 */
+  width: 100%; /* 전체 너비 차지 */
+  /* gap: 20px; */ /* 예시: 왼쪽과 오른쪽 섹션 간의 간격 */
+  gap: 50vw; /* 이전 간격과 유사하게 설정 */
+}
+
+.left-section, .right-section { /* 각 섹션 */
+  display: flex;
+  flex-direction: row; /* 열들을 가로로 배치 */
+  gap: 10px; /* 열(column) 간의 간격 */
+  width: 48%;
+  /* 열들을 위쪽 또는 가운데 정렬할지 결정 필요 */
+  /* align-items: flex-start; */ /* 예시: 열 상단 정렬 */
+  justify-content: center; /* 섹션 내에서 열 그룹을 가운데 정렬 (선택적) */
+}
+
+.section-label { /* 라벨 스타일은 유지 */
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+/* --- 새로운 스타일 --- */
+.seat-column { /* 추가된 좌석 열 스타일 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* justify-content: space-between; */ /* 이전 값 제거 */
+  gap: 5px; /* gap으로 좌석 간 간격 다시 설정 */
+  /* height: 60vh; */ /* 고정 높이 제거 */
+}
+
+.seat-placeholder { /* 추가된 플레이스홀더 스타일 */
+  /* 좌석과 동일한 높이를 주어 공간 차지 */
+  /* height: 4vh; */ /* 이전 값 주석 처리 */
+  height: 18vh; /* 좌석과 동일하게 높이 변경 */
+  margin: 2px 0;
+  width: 2vw;
+  visibility: hidden;
+}
+
+/* .seat 스타일은 second_seat.css 에서 관리 */
+
+/* --- 중앙 섹션 스타일 --- */
+.center-section {
+  display: flex;
+  flex-direction: row; /* 열들을 가로로 배치 */
+  gap: 10px; /* 열(column) 간의 간격 */
+  justify-content: center; /* 섹션 내에서 열 그룹을 가운데 정렬 (선택적) */
+  margin-top: 20px; /* 위쪽 섹션과의 간격 추가 */
+}
+
+
+/* SecondSeat 컴포넌트가 렌더링하는 요소에 'first_seat' 클래스가 있다고 가정 (실제 확인된 클래스) */
+
+/* 첫 번째 행(R1) 좌석들의 너비 */
+.center-section .seat-column > .first_seat:nth-child(1) {
+  width: 2vw; /* 예시: 뷰포트 너비 기준 */
+  /* width: 30px; */ /* 고정 픽셀 예시 */
+}
+
+/* 두 번째 행(R2) 좌석들의 너비를 35px로 설정 */
+.center-section .seat-column > .first_seat:nth-child(2) {
+  width: 4vw; /* 예시: 뷰포트 너비 기준 */
+  /* width: 35px; */ /* 고정 픽셀 예시 */
+}
+
+/* 세 번째 행(R3) 좌석들의 너비를 40px로 설정 */
+.center-section .seat-column > .first_seat:nth-child(3) {
+  width: 4vw; /* 예시: 뷰포트 너비 기준 */
+  /* width: 40px; */ /* 고정 픽셀 예시 */
+}
+
+/* 네 번째 행(R4) 좌석들의 너비를 45px로 설정 */
+.center-section .seat-column > .first_seat:nth-child(4) {
+  width: 4vw; /* 예시: 뷰포트 너비 기준 */
+  /* width: 45px; */ /* 고정 픽셀 예시 */
+}
+
+/* 참고: SecondSeat 컴포넌트의 실제 렌더링 클래스 이름이 다르거나, */
+/* 추가적인 스타일 조정이 필요할 수 있습니다. */

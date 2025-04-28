@@ -1,0 +1,46 @@
+/* src/floor/2nd/second_seat.css */
+.second_seat {
+    padding: 8px 5px; /* 패딩 조정 */
+    border: 1px solid #666;
+    border-radius: 3px; /* 약간 둥글게 */
+    background-color: #f0f0f0;
+    text-align: center;
+    font-size: 0.75rem; /* 폰트 크기 약간 줄임 */
+    /* transform: rotate(90deg); /* 회전 제거 */
+    /* margin: 15px 0; /* 회전용 여백 제거 */
+    margin: 2px 0; /* 기본 위아래 여백 */
+    /* width: 30px; */ /* 이전 px 값 주석 처리 */
+    width: 2vw;  /* vw 너비 추가 축소 */
+    /* height: 50px; */ /* 이전 px 값 주석 처리 */
+    height: 18vh; /* 좌석 높이를 대폭 늘림 */
+    display: flex; /* 내부 텍스트 세로 중앙 정렬 위해 추가 */
+    justify-content: center; /* 가로 중앙 */
+    align-items: center; /* 세로 중앙 */
+  }
+    
+  .second_seat:hover {
+    background-color: #ddd;
+  }
+
+  .second-seat-center {
+    /* --- Shape from .second_seat --- */
+    padding: 8px 5px; /* 패딩 조정 (from .second_seat, can be adjusted) */
+    border: 1px solid #666;
+    border-radius: 3px;
+    background-color: #f0f0f0;
+    text-align: center;
+    font-size: 0.75rem;
+    margin: 2px 0; 
+    display: flex; /* Flexbox for centering */
+    justify-content: center; /* Horizontal centering */
+    align-items: center; /* Vertical centering */
+
+    /* --- Size from .first_seat --- */
+    width: 12vw;
+    height: 4vh;
+  }
+
+  .second-seat-center:hover {
+    background-color: #ddd; /* Add hover effect consistent with .second_seat */
+  }
+  
