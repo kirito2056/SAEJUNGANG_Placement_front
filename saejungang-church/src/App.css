@@ -1,0 +1,43 @@
+/* App.css (최신 버전) */
+.app-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    font-family: sans-serif; /* 기본 폰트 설정 (원하는 폰트로 변경 가능) */
+  }
+  
+  .floor-buttons {
+    position: absolute;
+    z-index: 100;
+    display: flex;
+    gap: 10px; /* 버튼 사이 간격 */
+    margin-bottom: 20px; /* 페이지 컨테이너와 간격 */
+  }
+  
+  .floor-buttons button {
+    padding: 10px 20px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  
+  .floor-buttons button:hover {
+    background-color: #f0f0f0;
+  }
+  
+  /* 현재 활성화된 버튼 스타일 */
+  .floor-buttons .active-button button {
+    background-color: lightblue;
+    font-weight: bold;
+  }
+  
+  /* 층을 쌓는 컨테이너 스타일 */
+  .floor-stack-container {
+    position: absolute; /* position: relative; 추가 (겹치는 레이아웃을 위해) */
+    width:100%;
+    max-width: 100%;
+    min-height: 100%; /* 필요에 따라 높이 조정 또는 삭제 */
+    margin-bottom: 20px; /* 페이지 아래 여백 (필요에 따라 조정) */
+  }
+
+  @font

@@ -1,18 +1,32 @@
 /* src/floor/1st/first_seat.css */
 
-.seat {
-    width: 12vw !important;
-    height: 4vh;
-    margin: 4px;
+.first_seat {
+    width: 10vw !important;
+    height: 3.5vh;
     border: 1px solid #ccc;
     border-radius: 4px;
     background-color: #f8f8f8;
     font-size: 0.8rem;
     cursor: pointer;
     transition: background-color 0.2s;
+    margin: 4px;
   }
   
-  .seat:hover {
+  .first_seat:hover {
     background-color: #ddd;
   }
+
+  .seat-block-left {
+    transform-origin: 100% 0;
+    transform: rotate(2deg);
+  }
+
+  .seat-block-center {
+    gap: 1rem;
+  }
+    
   
+  .seat-block-right {
+    transform-origin: 0 0 !important;
+    transform: rotate(-2deg);
+  }

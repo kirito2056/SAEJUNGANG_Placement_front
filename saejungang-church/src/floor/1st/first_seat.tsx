@@ -9,7 +9,7 @@ interface SeatProps {
 
 const Seat: React.FC<SeatProps> = ({ seatNumber, onClick }) => {
   return (
-    <button className="seat" onClick={onClick}>
+    <button className="first_seat" onClick={onClick}>
       {seatNumber}
     </button>
   );
