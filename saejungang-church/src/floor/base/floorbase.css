@@ -1,0 +1,48 @@
+/* src/floor/base/floorbase.css (수정된 부분) */
+.floor-base-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%; /* 가로 전체 화면 */
+  height: 100%; /* 또는 height: 100%; 로 변경 가능, auto가 더 유연할 수 있음 */
+  /* overflow: hidden; 삭제 */
+}
+
+h2 {
+  width: 100px;
+  height: 100px;
+  background-color: white;
+}
+
+/* 겹쳐지는 층 (2층, 3층, 4층) 스타일 */
+.floor-overlay {
+  position: absolute;
+  top: 0;         /* 상단 위치 조정 */
+  left: 0;        /* 좌측 위치 조정 */
+  width: 100%;    /* 부모 너비에 맞춤 */
+  height: 100vh;   /* 높이를 auto로 변경 -> 내용에 따라 자동 조절 */
+  /* z-index: 10; 삭제 -> 필요하다면 다시 추가 */
+  background-color: rgba(255, 255, 255, 0.5); /* 배경색 유지 */
+}
+
+.floor-layout {
+  position: absolute;
+  width: 100%; /* 화면 너비의 95% */
+  max-width: 100%; /* 최대 너비 설정 유지 */
+  height: 100vh; /* 높이를 auto로 변경 -> 내용에 따라 자동 조절 */
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  background-color: rgba(0, 0, 0, 0); /* 배경색 투명 유지 */
+  display: flex; /* flexbox 레이아웃 사용 */
+  flex-direction: column; /* 수직 방향으로 요소 배치 */
+  /* overflow: hidden; 삭제 */
+}
+
+.seat-layout-container {
+  padding: 20px; /* 내부 여백 유지 */
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  flex-wrap: wrap;
+  /* max-height 및 overflow 관련 스타일 삭제 -> 전체 스크롤을 위해 */
+}
