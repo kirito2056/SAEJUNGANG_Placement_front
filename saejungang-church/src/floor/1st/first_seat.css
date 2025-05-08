@@ -38,6 +38,27 @@
     border-color: #0056b3;
   }
 
+/* 예약된 좌석 스타일 */
+.first_seat.reserved {
+  background-color: #6c757d; /* 회색 계열 배경 */
+  color: white;
+  cursor: not-allowed; /* 커서 모양 변경 */
+}
+
+/* 선택되었지만 예약도 된 좌석 (드물지만, UI 피드백용) */
+.first_seat.selected.reserved {
+  background-color: #5a6268; /* 약간 더 진한 회색 */
+  border-color: #4e555b;
+}
+
+/* 비활성화된 좌석 스타일 (예약된 좌석과 유사하게) */
+.first_seat.disabled {
+  /* background-color: #adb5bd; */ /* 이미 reserved에서 처리 */
+  /* color: #495057; */
+  /* cursor: not-allowed; */
+  opacity: 0.7; /* 약간 투명하게 하여 비활성 느낌 강조 */
+}
+
 /* 드래그 중 좌석 hover 효과 방지 */
 .first-floor-container.dragging .first_seat {
   pointer-events: none;

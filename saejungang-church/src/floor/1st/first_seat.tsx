@@ -6,12 +6,23 @@ interface SeatProps {
   seatNumber: string;
   onClick?: () => void;
   isSelected?: boolean;
+  isReserved?: boolean;
+  isDisabled?: boolean;
 }
 
-const Seat = forwardRef<HTMLButtonElement, SeatProps>(({ seatNumber, onClick, isSelected }, ref) => {
-  const className = `first_seat ${isSelected ? 'selected' : ''}`;
+const Seat = forwardRef<HTMLButtonElement, SeatProps>((
+  { seatNumber, onClick, isSelected, isReserved, isDisabled }, 
+  ref
+) => {
+  const classNames = [
+    'first_seat',
+    isSelected ? 'selected' : '',
+    isReserved ? 'reserved' : '',
+    isDisabled ? 'disabled' : ''
+  ].filter(Boolean).join(' ');
 
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    if (isDisabled) return;
     event.stopPropagation();
     onClick?.();
   };
@@ -19,8 +30,9 @@ const Seat = forwardRef<HTMLButtonElement, SeatProps>(({ seatNumber, onClick, is
   return (
     <button
       ref={ref}
-      className={className}
+      className={classNames}
       onClick={handleClick}
+      disabled={isDisabled}
     >
       {seatNumber}
     </button>

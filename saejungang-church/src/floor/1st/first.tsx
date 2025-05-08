@@ -27,6 +27,8 @@ const FirstFloor: React.FC = () => {
   const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null); // 컨테이너 ref
   const seatRefs = useRef<Map<string, HTMLButtonElement | null>>(new Map()); // 좌석 ref들을 저장할 Map
+  const [reservedSeatsFromServer, setReservedSeatsFromServer] = useState<Set<string>>(new Set()); // 서버로부터 받은 예약된 좌석
+  const [isLoading, setIsLoading] = useState(false); // 로딩 상태
 
   // 좌석 ref를 Map에 저장하는 함수 (el 타입 명시)
   const setSeatRef = (seatNumber: string, element: HTMLButtonElement | null) => {
@@ -38,22 +40,21 @@ const FirstFloor: React.FC = () => {
   };
 
   const handleMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    // 클릭된 요소가 좌석 버튼이 아닌 경우 드래그 시작
-    if (!(event.target as HTMLElement).closest('.first_seat')) {
+    const targetElement = event.target as HTMLElement;
+    // 클릭된 요소가 좌석 버튼이 아니고, 예약 버튼도 아닌 경우 드래그 시작
+    if (!targetElement.closest('.first_seat') && !targetElement.closest('.reservation-button')) {
       setIsDragging(true);
       const containerRect = containerRef.current?.getBoundingClientRect();
       if (containerRect) {
           const x = event.clientX - containerRect.left;
           const y = event.clientY - containerRect.top;
           setStartPoint({ x, y });
-          setSelectionBox({ x, y, width: 0, height: 0 }); // 초기 선택 상자 설정
-          // Shift 키를 누르지 않았다면 기존 선택 해제
+          setSelectionBox({ x, y, width: 0, height: 0 });
           if (!event.shiftKey) {
             setSelectedSeats(new Set());
           }
       }
     }
-    // 좌석을 클릭한 경우는 Seat 컴포넌트의 onClick에서 처리 (stopPropagation으로 인해 여기까지 오지 않음)
   }, []); // 의존성 배열 유지
 
   const handleMouseMove = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
@@ -132,23 +133,68 @@ const FirstFloor: React.FC = () => {
     };
   }, [isDragging, handleMouseUp]); // isDragging, handleMouseUp 의존성 추가
 
+  // 예약 처리 함수
+  const handleReservation = async () => {
+    if (selectedSeats.size === 0) {
+      alert('예약할 좌석을 선택해주세요.');
+      return;
+    }
+
+    setIsLoading(true);
+    const payload = {
+      reserved_guyok: "1층 선택 구역", // Placeholder 구역 이름
+      seat_identifiers: Array.from(selectedSeats), // 좌석 식별자는 이미 1F-X-Y 형식
+    };
+
+    try {
+      const response = await fetch('http://localhost:8000/reservations/', { // FastAPI 주소 확인 필요
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.status === 201) {
+        const newReservation = await response.json();
+        // API 응답의 seat_identifier가 올바른 형식인지 확인 (Pydantic 모델에 따라 다를 수 있음)
+        const reservedSeatIds = newReservation.seats && Array.isArray(newReservation.seats) 
+                               ? newReservation.seats.map((s: any) => s.seat_identifier).join(', ') 
+                               : Array.from(selectedSeats).join(', '); // fallback
+        alert(`예약 성공! 예약 ID: ${newReservation.id}\n좌석: ${reservedSeatIds}`);
+        setSelectedSeats(new Set());
+      } else if (response.status === 409) {
+        const errorData = await response.json();
+        alert(`예약 실패: ${errorData.detail}`);
+      } else {
+        const errorText = await response.text();
+        alert(`예약 처리 중 오류가 발생했습니다: ${response.status} ${errorText}`);
+      }
+    } catch (error) {
+      console.error("Reservation error:", error);
+      alert('네트워크 오류 또는 서버 문제로 예약에 실패했습니다.');
+    }
+    setIsLoading(false);
+  };
 
   const renderSeats = (col: number) => {
     const rows = (col === 1 || col === 6) ? 10 : (col === 3 || col === 4) ? 15 : 15;
     return (
       <div className="seat-column" key={col}>
         {Array.from({ length: rows }, (_, row) => {
-          const seatNumber = `${col}-${row + 1}`;
+          const seatNumber = `1F-${col}-${row + 1}`; // 좌석 식별자에 "1F-" 접두사 추가
+          const isActuallySelected = selectedSeats.has(seatNumber);
+          const isReserved = reservedSeatsFromServer.has(seatNumber);
           return (
             <Seat
               key={seatNumber}
-              seatNumber={seatNumber}
-              // ref를 설정하는 함수 전달 (타입 문제 해결됨)
+              seatNumber={seatNumber} // "1F-X-Y" 형식의 좌석 번호 전달
               ref={(el: HTMLButtonElement | null) => setSeatRef(seatNumber, el)}
-              // 선택 상태 전달
-              isSelected={selectedSeats.has(seatNumber)}
-              // 클릭 이벤트 핸들러 (개별 좌석 클릭 시 선택 토글)
+              isSelected={isActuallySelected}
+              isReserved={isReserved}
+              isDisabled={isReserved && !isActuallySelected}
               onClick={() => {
+                if (isReserved) return;
                  setSelectedSeats(prevSelected => {
                      const newSelected = new Set(prevSelected);
                      if (newSelected.has(seatNumber)) {
@@ -190,6 +236,22 @@ const FirstFloor: React.FC = () => {
         <div className="seat-block seat-block-center">{[3, 4].map(renderSeats)}</div>
         <div className="seat-block seat-block-right">{[5, 6].map(renderSeats)}</div>
       </div>
+
+      {/* 예약 버튼 추가 */}
+      <div style={{ marginTop: '2rem', textAlign: 'center' }}>
+        <button 
+          className="reservation-button" // 클래스 추가
+          onClick={handleReservation} 
+          disabled={isLoading || selectedSeats.size === 0} 
+          style={{ padding: '10px 20px', fontSize: '1rem' }}
+        >
+          {isLoading ? '예약 중...' : `선택된 좌석 ${selectedSeats.size}개 예약하기`}
+        </button>
+      </div>
+      {/* 선택된 좌석 목록 표시 (디버깅용) */}
+      {/* <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+        Selected: {Array.from(selectedSeats).join(', ')}
+      </div> */}
     </div>
   );
 };
