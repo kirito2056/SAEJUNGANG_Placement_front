@@ -39,6 +39,7 @@ interface ReservationGroup {
   seats: Set<string>;
   color: string; 
   boundingBox: { x: number; y: number; width: number; height: number } | null;
+  rotationAngle?: number; // 회전 각도 추가
 }
 
 const FirstFloor: React.FC = () => {
@@ -58,11 +59,8 @@ const FirstFloor: React.FC = () => {
 
   // WebSocket 연결 및 메시지 처리
   useEffect(() => {
-    // const wsUrl = (window.location.protocol === "https:" ? "wss://" : "ws://") + (process.env.REACT_APP_WEBSOCKET_URL || "localhost:8000/ws");
-    const wsUrl = (window.location.protocol === "https:" ? "wss://" : "ws://") + ("localhost:8000/ws"); // 직접 사용
-    console.log("Attempting to connect to WebSocket:", wsUrl);
+    const wsUrl = (window.location.protocol === "https:" ? "wss://" : "ws://") + ("localhost:8000/ws");
     ws.current = new WebSocket(wsUrl);
-
     ws.current.onopen = () => { /* console.log("WebSocket Connected"); */ };
     ws.current.onclose = () => { /* console.log("WebSocket Disconnected"); */ };
     ws.current.onerror = (error) => console.error("WebSocket Error:", error);
@@ -72,38 +70,30 @@ const FirstFloor: React.FC = () => {
         const message = JSON.parse(event.data as string);
         if (message.type === "initial_state" || message.type === "reservation_update") {
           const serverData: ServerReservation[] = message.data || [];
-          console.log("Processing serverData for groups (from WebSocket message.data):", serverData);
-          
           const newGroups: ReservationGroup[] = serverData.map(res => ({
             id: res.id,
             guyok: res.reserved_guyok,
             seats: new Set(res.seats.map(seat => seat.seat_identifier)),
-            color: 'rgba(0, 123, 255, 0.6)', // 초기 파란색, 약간 투명하게
-            boundingBox: null, 
+            color: 'rgba(0, 123, 255, 0.6)',
+            boundingBox: null,
+            rotationAngle: 0,
           }));
-          console.log("New groups created (before setting state, from WebSocket):", newGroups);
           setReservationGroups(newGroups);
-
           const allCurrentlyReserved = new Set<string>();
           serverData.forEach(res => {
             res.seats.forEach(seat => allCurrentlyReserved.add(seat.seat_identifier));
           });
           setReservedSeatsFromServer(allCurrentlyReserved);
-          console.log("Updated reservedSeatsFromServer (from WebSocket):", allCurrentlyReserved);
-
         } else if (message.type === "error") {
           console.error("Server WebSocket Error Message:", message.data);
           alert(`WebSocket Error from Server: ${message.data?.detail || JSON.stringify(message.data) || 'Unknown error'}`);
         }
       } catch (e) {
         console.error("Error processing WebSocket message:", e, "Raw data:", event.data);
-        alert(`Error processing WebSocket message. Check console for details. Raw data: ${event.data}`);
+        alert(`Error processing WebSocket message. Check console. Raw data: ${event.data}`);
       }
     };
-    return () => {
-      console.log("Closing WebSocket connection");
-      ws.current?.close();
-    }
+    return () => ws.current?.close();
   }, []);
 
   // 좌석 ref를 Map에 저장하는 함수 (el 타입 명시)
@@ -240,41 +230,26 @@ const FirstFloor: React.FC = () => {
 
   // 예약 그룹 Bounding Box 계산 (useLayoutEffect 사용)
   useLayoutEffect(() => {
-    console.log(
-      "useLayoutEffect for bounding box: Triggered. Groups:", 
-      reservationGroups.length, 
-      "Seat Refs:", 
-      seatRefs.current.size
-    );
-
-    if (!containerRef.current) {
-      console.log("Bounding box calc: Container ref not ready.");
-      return;
-    }
-    if (reservationGroups.length === 0) {
-      console.log("Bounding box calc: No reservation groups to process.");
-      return; // 그룹이 없으면 계산할 필요 없음
-    }
-    if (seatRefs.current.size === 0 && reservationGroups.some(g => g.seats.size > 0)) {
-        console.warn("Bounding box calc: Reservation groups exist, but no seat refs available yet. Calculation might be incomplete.");
-        // 이 경우, seatRefs가 채워진 후 이 effect가 다시 실행되어야 함
-    }
+    if (!containerRef.current || reservationGroups.length === 0) return;
 
     const cRect = containerRef.current.getBoundingClientRect();
-    // console.log("Container Rect for BBox:", cRect); // 이전 로그에서 유지
-
     setReservationGroups(prevGroups => {
-      // console.log("Updating reservation groups for bounding boxes. Seat refs size:", seatRefs.current.size); // 이전 로그에서 유지
       const updatedGroups = prevGroups.map(group => {
-        if (group.seats.size === 0) {
-          // console.log(`Group ${group.id} (${group.guyok}) has no seats.`); // 이전 로그에서 유지
-          return { ...group, boundingBox: null };
-        }
+        if (group.seats.size === 0) return { ...group, boundingBox: null, rotationAngle: 0 };
+        
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
         let seatsFoundCount = 0;
+        const groupColumns = new Set<number>();
 
         group.seats.forEach(seatId => {
           const seatEl = seatRefs.current.get(seatId);
+          const parts = seatId.split('-');
+          if (parts.length === 3) {
+            const col = parseInt(parts[1], 10);
+            if (!isNaN(col)) {
+              groupColumns.add(col);
+            }
+          }
           if (seatEl) {
             seatsFoundCount++;
             const seatRect = seatEl.getBoundingClientRect();
@@ -284,36 +259,33 @@ const FirstFloor: React.FC = () => {
             minY = Math.min(minY, relTop);
             maxX = Math.max(maxX, relLeft + seatRect.width);
             maxY = Math.max(maxY, relTop + seatRect.height);
-          } else {
-            // console.log(`Seat element for ID ${seatId} in group ${group.guyok} not found in refs.`);
           }
         });
 
-        if (seatsFoundCount === 0) {
-          // console.log(`No seat elements found for group ${group.id} (${group.guyok}).`); // 이전 로그에서 유지
-          return { ...group, boundingBox: null };
-        }
+        if (seatsFoundCount === 0) return { ...group, boundingBox: null, rotationAngle: 0 };
+        
         const newBoundingBox = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
-        // console.log(`Group ${group.id} (${group.guyok}) - Seats found: ${seatsFoundCount}, BBox:`, newBoundingBox); // 이전 로그에서 유지
-        // 만약 이전 boundingBox와 같다면 새 객체를 만들지 않는 최적화도 가능하나, 지금은 단순하게 유지
-        return { ...group, boundingBox: newBoundingBox };
+        
+        let newRotationAngle = 0;
+        const colsArray = Array.from(groupColumns);
+        const isLeftBlock = colsArray.length > 0 && colsArray.every(col => col === 1 || col === 2);
+        const isRightBlock = colsArray.length > 0 && colsArray.every(col => col === 5 || col === 6);
+
+        if (isLeftBlock) {
+          newRotationAngle = 2;
+        } else if (isRightBlock) {
+          newRotationAngle = -2;
+        }
+        return { ...group, boundingBox: newBoundingBox, rotationAngle: newRotationAngle };
       });
+
+      const boundingBoxesChanged = JSON.stringify(prevGroups.map(g=>g.boundingBox)) !== JSON.stringify(updatedGroups.map(g=>g.boundingBox));
+      const rotationsChanged = JSON.stringify(prevGroups.map(g=>g.rotationAngle)) !== JSON.stringify(updatedGroups.map(g=>g.rotationAngle));
       
-      // Check if actual changes occurred to prevent potential loops if an object reference didn't change
-      // This is a shallow check; for deep check, JSON.stringify or a utility function would be needed
-      const hasChanged = JSON.stringify(prevGroups.map(g=>g.boundingBox)) !== JSON.stringify(updatedGroups.map(g=>g.boundingBox));
-      if(hasChanged){
-        console.log("Bounding boxes re-calculated, setting new reservationGroups state.");
-        return updatedGroups;
-      }
-      return prevGroups; // No actual change in bounding boxes
+      if(boundingBoxesChanged || rotationsChanged) return updatedGroups;
+      return prevGroups;
     });
-  // 의존성 배열: reservationGroups 객체 배열 자체가 변경되거나 (새 그룹 추가/삭제 등),
-  // 그룹 내 좌석 ID 목록이 변경되거나, 좌석 ref의 개수가 변경될 때 실행.
-  }, [reservationGroups, seatRefs.current.size]); // reservationGroups 자체를 의존성에 추가 (새 배열 인스턴스일 경우)
-                                                // JSON.stringify(...)는 매우 클 수 있으므로, 그룹 객체 자체의 변경을 감지하도록 함.
-                                                // reservationGroups.map(g => Array.from(g.seats)).flat() 대신 reservationGroups 자체를 넣음
-                                                // React는 배열/객체 참조가 바뀌면 effect를 실행.
+  }, [reservationGroups, seatRefs.current.size]);
 
   const renderSeats = (col: number) => {
     const rows = (col === 1 || col === 6) ? 10 : (col === 3 || col === 4) ? 15 : 15;
@@ -366,12 +338,9 @@ const FirstFloor: React.FC = () => {
 
       {/* 예약 그룹 사각형들 렌더링 */}
       {reservationGroups.map(group => {
-        if (!group.boundingBox || group.boundingBox.width <= 0 || group.boundingBox.height <= 0) {
-          // console.log(`Group ${group.id} (${group.guyok}) boundingBox is null or invalid, not rendering.`); // 너무 많은 로그 유발 가능
-          return null;
-        }
+        if (!group.boundingBox || group.boundingBox.width <= 0 || group.boundingBox.height <= 0) return null;
         const { x, y, width, height } = group.boundingBox;
-        console.log(`Rendering group overlay for ${group.guyok} at`, group.boundingBox);
+        const rotationStyle = group.rotationAngle ? { transform: `rotate(${group.rotationAngle}deg)` } : {};
         return (
           <div
             key={`group-${group.id}`}
@@ -382,6 +351,7 @@ const FirstFloor: React.FC = () => {
               width: `${width}px`,
               height: `${height}px`,
               backgroundColor: group.color,
+              ...rotationStyle, 
             }}
           >
             <span className="reservation-group-name">{group.guyok}</span>
