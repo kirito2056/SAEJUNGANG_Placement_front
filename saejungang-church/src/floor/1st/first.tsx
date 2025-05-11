@@ -1,5 +1,5 @@
 // src/floor/1st/first.tsx
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useLayoutEffect } from 'react';
 import Seat from './first_seat';
 import './first.css';
 
@@ -20,15 +20,91 @@ const SelectionBoxComponent: React.FC<{ box: { x: number; y: number; width: numb
   return <div style={style} />;
 };
 
+// --- 타입 정의 --- 
+interface ServerReservationSeat {
+  id: number | string; // 백엔드 seat 테이블의 ID (있다면)
+  seat_identifier: string;
+}
+
+interface ServerReservation {
+  id: number | string; // 백엔드 reservation 테이블의 ID
+  reserved_guyok: string;
+  seats: ServerReservationSeat[];
+  // user_id 등 다른 정보가 있다면 추가 가능
+}
+
+interface ReservationGroup {
+  id: number | string;
+  guyok: string;
+  seats: Set<string>;
+  color: string; 
+  boundingBox: { x: number; y: number; width: number; height: number } | null;
+}
+
 const FirstFloor: React.FC = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [selectionBox, setSelectionBox] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
   const [selectedSeats, setSelectedSeats] = useState<Set<string>>(new Set());
   const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null); // 컨테이너 ref
-  const seatRefs = useRef<Map<string, HTMLButtonElement | null>>(new Map()); // 좌석 ref들을 저장할 Map
-  const [reservedSeatsFromServer, setReservedSeatsFromServer] = useState<Set<string>>(new Set()); // 서버로부터 받은 예약된 좌석
-  const [isLoading, setIsLoading] = useState(false); // 로딩 상태
+  const containerRef = useRef<HTMLDivElement>(null);
+  const seatRefs = useRef<Map<string, HTMLButtonElement | null>>(new Map());
+  
+  const [isLoading, setIsLoading] = useState(false);
+  // reservedSeatsFromServer는 개별 좌석의 예약 여부를 빠르게 확인하기 위해 유지 (isReserved, isDisabled prop에 사용)
+  const [reservedSeatsFromServer, setReservedSeatsFromServer] = useState<Set<string>>(new Set());
+  // reservationGroups는 그룹 사각형을 그리기 위한 주 데이터
+  const [reservationGroups, setReservationGroups] = useState<ReservationGroup[]>([]); 
+  const ws = useRef<WebSocket | null>(null);
+
+  // WebSocket 연결 및 메시지 처리
+  useEffect(() => {
+    // const wsUrl = (window.location.protocol === "https:" ? "wss://" : "ws://") + (process.env.REACT_APP_WEBSOCKET_URL || "localhost:8000/ws");
+    const wsUrl = (window.location.protocol === "https:" ? "wss://" : "ws://") + ("localhost:8000/ws"); // 직접 사용
+    console.log("Attempting to connect to WebSocket:", wsUrl);
+    ws.current = new WebSocket(wsUrl);
+
+    ws.current.onopen = () => { /* console.log("WebSocket Connected"); */ };
+    ws.current.onclose = () => { /* console.log("WebSocket Disconnected"); */ };
+    ws.current.onerror = (error) => console.error("WebSocket Error:", error);
+
+    ws.current.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data as string);
+        if (message.type === "initial_state" || message.type === "reservation_update") {
+          const serverData: ServerReservation[] = message.data || [];
+          console.log("Processing serverData for groups (from WebSocket message.data):", serverData);
+          
+          const newGroups: ReservationGroup[] = serverData.map(res => ({
+            id: res.id,
+            guyok: res.reserved_guyok,
+            seats: new Set(res.seats.map(seat => seat.seat_identifier)),
+            color: 'rgba(0, 123, 255, 0.6)', // 초기 파란색, 약간 투명하게
+            boundingBox: null, 
+          }));
+          console.log("New groups created (before setting state, from WebSocket):", newGroups);
+          setReservationGroups(newGroups);
+
+          const allCurrentlyReserved = new Set<string>();
+          serverData.forEach(res => {
+            res.seats.forEach(seat => allCurrentlyReserved.add(seat.seat_identifier));
+          });
+          setReservedSeatsFromServer(allCurrentlyReserved);
+          console.log("Updated reservedSeatsFromServer (from WebSocket):", allCurrentlyReserved);
+
+        } else if (message.type === "error") {
+          console.error("Server WebSocket Error Message:", message.data);
+          alert(`WebSocket Error from Server: ${message.data?.detail || JSON.stringify(message.data) || 'Unknown error'}`);
+        }
+      } catch (e) {
+        console.error("Error processing WebSocket message:", e, "Raw data:", event.data);
+        alert(`Error processing WebSocket message. Check console for details. Raw data: ${event.data}`);
+      }
+    };
+    return () => {
+      console.log("Closing WebSocket connection");
+      ws.current?.close();
+    }
+  }, []);
 
   // 좌석 ref를 Map에 저장하는 함수 (el 타입 명시)
   const setSeatRef = (seatNumber: string, element: HTMLButtonElement | null) => {
@@ -113,24 +189,9 @@ const FirstFloor: React.FC = () => {
 
   // 마우스가 컨테이너 밖으로 나가거나 브라우저 창을 벗어날 때 드래그 종료 처리
   useEffect(() => {
-    const handleMouseLeave = (event: MouseEvent) => {
-        // 마우스 버튼이 눌린 상태에서 벗어났는지 확인
-        if (isDragging && (event.buttons & 1)) { // 1은 왼쪽 버튼
-             handleMouseUp();
-        }
-    };
-
-    const currentContainer = containerRef.current;
-    // window 이벤트 리스너 추가 (컨테이너 밖에서 mouseup 발생 시)
-    window.addEventListener('mouseup', handleMouseUp);
-    // 컨테이너 이탈 시 핸들러 추가 (선택사항, 좀 더 부드러운 UX 위해)
-    currentContainer?.addEventListener('mouseleave', handleMouseLeave);
-
-
-    return () => {
-      window.removeEventListener('mouseup', handleMouseUp);
-      currentContainer?.removeEventListener('mouseleave', handleMouseLeave);
-    };
+    const handleGlobalMouseUp = () => { if (isDragging) handleMouseUp(); };
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+    return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
   }, [isDragging, handleMouseUp]); // isDragging, handleMouseUp 의존성 추가
 
   // 예약 처리 함수
@@ -139,43 +200,120 @@ const FirstFloor: React.FC = () => {
       alert('예약할 좌석을 선택해주세요.');
       return;
     }
-
     setIsLoading(true);
-    const payload = {
-      reserved_guyok: "1층 선택 구역", // Placeholder 구역 이름
-      seat_identifiers: Array.from(selectedSeats), // 좌석 식별자는 이미 1F-X-Y 형식
-    };
+    const payload = { reserved_guyok: "1층 선택 구역", seat_identifiers: Array.from(selectedSeats) };
+    
+    // API URL 구성 수정
+    const apiUrlBase = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+    const fullApiUrl = `${apiUrlBase}/reservations/`;
 
     try {
-      const response = await fetch('http://localhost:8000/reservations/', { // FastAPI 주소 확인 필요
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
+      const response = await fetch(fullApiUrl, { 
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
       });
-
       if (response.status === 201) {
-        const newReservation = await response.json();
-        // API 응답의 seat_identifier가 올바른 형식인지 확인 (Pydantic 모델에 따라 다를 수 있음)
-        const reservedSeatIds = newReservation.seats && Array.isArray(newReservation.seats) 
-                               ? newReservation.seats.map((s: any) => s.seat_identifier).join(', ') 
-                               : Array.from(selectedSeats).join(', '); // fallback
-        alert(`예약 성공! 예약 ID: ${newReservation.id}\n좌석: ${reservedSeatIds}`);
+        const newRes = await response.json();
+        const seatIds = newRes.seats && Array.isArray(newRes.seats) ? newRes.seats.map((s: any) => s.seat_identifier).join(', ') : Array.from(selectedSeats).join(', ');
+        alert(`예약 성공! ID: ${newRes.id}\n좌석: ${seatIds}`);
         setSelectedSeats(new Set());
       } else if (response.status === 409) {
-        const errorData = await response.json();
-        alert(`예약 실패: ${errorData.detail}`);
+        const errData = await response.json(); alert(`예약 실패: ${errData.detail}`);
       } else {
+        // 404 HTML 응답을 더 잘 처리하기 위해 response.text()를 먼저 확인
         const errorText = await response.text();
-        alert(`예약 처리 중 오류가 발생했습니다: ${response.status} ${errorText}`);
+        try {
+          // JSON 에러 메시지인지 확인
+          const errorJson = JSON.parse(errorText);
+          alert(`예약 오류: ${response.status} ${errorJson.detail || errorText}`);
+        } catch (e) {
+          // JSON이 아니라면 HTML 또는 일반 텍스트로 표시
+          alert(`예약 오류: ${response.status} - 서버 응답을 확인해주세요.\n${errorText.substring(0, 200)}...`); 
+        }
       }
-    } catch (error) {
+    } catch (error) { 
+      const errorMessage = error instanceof Error ? error.message : '네트워크/서버 오류로 예약 실패';
+      alert(errorMessage);
       console.error("Reservation error:", error);
-      alert('네트워크 오류 또는 서버 문제로 예약에 실패했습니다.');
     }
     setIsLoading(false);
   };
+
+  // 예약 그룹 Bounding Box 계산 (useLayoutEffect 사용)
+  useLayoutEffect(() => {
+    console.log(
+      "useLayoutEffect for bounding box: Triggered. Groups:", 
+      reservationGroups.length, 
+      "Seat Refs:", 
+      seatRefs.current.size
+    );
+
+    if (!containerRef.current) {
+      console.log("Bounding box calc: Container ref not ready.");
+      return;
+    }
+    if (reservationGroups.length === 0) {
+      console.log("Bounding box calc: No reservation groups to process.");
+      return; // 그룹이 없으면 계산할 필요 없음
+    }
+    if (seatRefs.current.size === 0 && reservationGroups.some(g => g.seats.size > 0)) {
+        console.warn("Bounding box calc: Reservation groups exist, but no seat refs available yet. Calculation might be incomplete.");
+        // 이 경우, seatRefs가 채워진 후 이 effect가 다시 실행되어야 함
+    }
+
+    const cRect = containerRef.current.getBoundingClientRect();
+    // console.log("Container Rect for BBox:", cRect); // 이전 로그에서 유지
+
+    setReservationGroups(prevGroups => {
+      // console.log("Updating reservation groups for bounding boxes. Seat refs size:", seatRefs.current.size); // 이전 로그에서 유지
+      const updatedGroups = prevGroups.map(group => {
+        if (group.seats.size === 0) {
+          // console.log(`Group ${group.id} (${group.guyok}) has no seats.`); // 이전 로그에서 유지
+          return { ...group, boundingBox: null };
+        }
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        let seatsFoundCount = 0;
+
+        group.seats.forEach(seatId => {
+          const seatEl = seatRefs.current.get(seatId);
+          if (seatEl) {
+            seatsFoundCount++;
+            const seatRect = seatEl.getBoundingClientRect();
+            const relTop = seatRect.top - cRect.top;
+            const relLeft = seatRect.left - cRect.left;
+            minX = Math.min(minX, relLeft);
+            minY = Math.min(minY, relTop);
+            maxX = Math.max(maxX, relLeft + seatRect.width);
+            maxY = Math.max(maxY, relTop + seatRect.height);
+          } else {
+            // console.log(`Seat element for ID ${seatId} in group ${group.guyok} not found in refs.`);
+          }
+        });
+
+        if (seatsFoundCount === 0) {
+          // console.log(`No seat elements found for group ${group.id} (${group.guyok}).`); // 이전 로그에서 유지
+          return { ...group, boundingBox: null };
+        }
+        const newBoundingBox = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+        // console.log(`Group ${group.id} (${group.guyok}) - Seats found: ${seatsFoundCount}, BBox:`, newBoundingBox); // 이전 로그에서 유지
+        // 만약 이전 boundingBox와 같다면 새 객체를 만들지 않는 최적화도 가능하나, 지금은 단순하게 유지
+        return { ...group, boundingBox: newBoundingBox };
+      });
+      
+      // Check if actual changes occurred to prevent potential loops if an object reference didn't change
+      // This is a shallow check; for deep check, JSON.stringify or a utility function would be needed
+      const hasChanged = JSON.stringify(prevGroups.map(g=>g.boundingBox)) !== JSON.stringify(updatedGroups.map(g=>g.boundingBox));
+      if(hasChanged){
+        console.log("Bounding boxes re-calculated, setting new reservationGroups state.");
+        return updatedGroups;
+      }
+      return prevGroups; // No actual change in bounding boxes
+    });
+  // 의존성 배열: reservationGroups 객체 배열 자체가 변경되거나 (새 그룹 추가/삭제 등),
+  // 그룹 내 좌석 ID 목록이 변경되거나, 좌석 ref의 개수가 변경될 때 실행.
+  }, [reservationGroups, seatRefs.current.size]); // reservationGroups 자체를 의존성에 추가 (새 배열 인스턴스일 경우)
+                                                // JSON.stringify(...)는 매우 클 수 있으므로, 그룹 객체 자체의 변경을 감지하도록 함.
+                                                // reservationGroups.map(g => Array.from(g.seats)).flat() 대신 reservationGroups 자체를 넣음
+                                                // React는 배열/객체 참조가 바뀌면 effect를 실행.
 
   const renderSeats = (col: number) => {
     const rows = (col === 1 || col === 6) ? 10 : (col === 3 || col === 4) ? 15 : 15;
@@ -226,6 +364,31 @@ const FirstFloor: React.FC = () => {
       {/* 드래그 영역 표시 컴포넌트 */}
       <SelectionBoxComponent box={selectionBox} />
 
+      {/* 예약 그룹 사각형들 렌더링 */}
+      {reservationGroups.map(group => {
+        if (!group.boundingBox || group.boundingBox.width <= 0 || group.boundingBox.height <= 0) {
+          // console.log(`Group ${group.id} (${group.guyok}) boundingBox is null or invalid, not rendering.`); // 너무 많은 로그 유발 가능
+          return null;
+        }
+        const { x, y, width, height } = group.boundingBox;
+        console.log(`Rendering group overlay for ${group.guyok} at`, group.boundingBox);
+        return (
+          <div
+            key={`group-${group.id}`}
+            className="reservation-group-overlay"
+            style={{
+              left: `${x}px`,
+              top: `${y}px`,
+              width: `${width}px`,
+              height: `${height}px`,
+              backgroundColor: group.color,
+            }}
+          >
+            <span className="reservation-group-name">{group.guyok}</span>
+          </div>
+        );
+      })}
+
       <div className="stage-container">
         <div className="choir">성가대석 (좌)</div>
         <div className="podium">설교단상</div>
@@ -257,3 +420,5 @@ const FirstFloor: React.FC = () => {
 };
 
 export default FirstFloor;
+
+
