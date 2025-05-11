@@ -268,13 +268,38 @@ const FirstFloor: React.FC = () => {
         
         let newRotationAngle = 0;
         const colsArray = Array.from(groupColumns);
-        const isLeftBlock = colsArray.length > 0 && colsArray.every(col => col === 1 || col === 2);
-        const isRightBlock = colsArray.length > 0 && colsArray.every(col => col === 5 || col === 6);
 
-        if (isLeftBlock) {
-          newRotationAngle = 2;
-        } else if (isRightBlock) {
-          newRotationAngle = -2;
+        if (colsArray.length > 0) {
+          const hasLeft = colsArray.some(col => col === 1 || col === 2);
+          const hasCenter = colsArray.some(col => col === 3 || col === 4);
+          const hasRight = colsArray.some(col => col === 5 || col === 6);
+
+          const definedAngles: number[] = [];
+          if (hasLeft) definedAngles.push(2);    // 왼쪽 블록 각도
+          if (hasCenter) definedAngles.push(0);  // 중앙 블록 각도
+          if (hasRight) definedAngles.push(-2);   // 오른쪽 블록 각도
+
+          if (definedAngles.length > 0) {
+            // 그룹이 하나의 블록 유형에만 속하는 경우 (가장 일반적인 경우 먼저 처리)
+            if (hasLeft && !hasCenter && !hasRight) {
+              newRotationAngle = 2;
+            } else if (!hasLeft && hasCenter && !hasRight) {
+              newRotationAngle = 0;
+            } else if (!hasLeft && !hasCenter && hasRight) {
+              newRotationAngle = -2;
+            } else {
+              // 두 개 이상의 블록 유형에 걸쳐 있는 경우, 해당 블록 각도들의 평균 계산
+              let sumOfAngles = 0;
+              let countOfAngleTypes = 0;
+              if (hasLeft) { sumOfAngles += 2; countOfAngleTypes++; }
+              if (hasCenter) { sumOfAngles += 0; countOfAngleTypes++; }
+              if (hasRight) { sumOfAngles += -2; countOfAngleTypes++; }
+              
+              if (countOfAngleTypes > 0) {
+                newRotationAngle = sumOfAngles / countOfAngleTypes;
+              }
+            }
+          }
         }
         return { ...group, boundingBox: newBoundingBox, rotationAngle: newRotationAngle };
       });
@@ -360,9 +385,9 @@ const FirstFloor: React.FC = () => {
       })}
 
       <div className="stage-container">
-        <div className="choir">성가대석 (좌)</div>
+        <div className="choir">TARGET 2030</div>
         <div className="podium">설교단상</div>
-        <div className="choir">성가대석 (우)</div>
+        <div className="choir">가서 제자 삼으라</div>
       </div>
       <div className="seat-group">
         <div className="seat-block seat-block-left">{[1, 2].map(renderSeats)}</div>
