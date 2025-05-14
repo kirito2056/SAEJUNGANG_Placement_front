@@ -20,6 +20,49 @@ const SelectionBoxComponent: React.FC<{ box: { x: number; y: number; width: numb
   return <div style={style} />;
 };
 
+// 구역명 입력 모달 컴포넌트
+const GuyokInputModal: React.FC<{
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (guyok: string) => void;
+  selectedSeatsCount: number;
+}> = ({ isOpen, onClose, onSubmit, selectedSeatsCount }) => {
+  const [guyok, setGuyok] = useState('');
+
+  // 모달이 닫힐 때 입력값 초기화
+  useEffect(() => {
+    if (!isOpen) {
+      setGuyok('');
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal-content">
+        <h3>구역명 입력</h3>
+        <p>선택된 좌석 수: {selectedSeatsCount}개</p>
+        <input
+          type="text"
+          value={guyok}
+          onChange={(e) => setGuyok(e.target.value)}
+          placeholder="구역명을 입력하세요"
+          className="guyok-input"
+        />
+        <div className="modal-buttons">
+          <button onClick={() => onSubmit(guyok)} className="submit-button">
+            예약하기
+          </button>
+          <button onClick={onClose} className="cancel-button">
+            취소
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- 타입 정의 --- 
 interface ServerReservationSeat {
   id: number | string; // 백엔드 seat 테이블의 ID (있다면)
@@ -56,6 +99,7 @@ const FirstFloor: React.FC = () => {
   // reservationGroups는 그룹 사각형을 그리기 위한 주 데이터
   const [reservationGroups, setReservationGroups] = useState<ReservationGroup[]>([]); 
   const ws = useRef<WebSocket | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   // WebSocket 연결 및 메시지 처리
   useEffect(() => {
@@ -106,8 +150,10 @@ const FirstFloor: React.FC = () => {
   };
 
   const handleMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    // 모달이 열려있을 때는 드래그 시작하지 않음
+    if (isModalOpen) return;
+
     const targetElement = event.target as HTMLElement;
-    // 클릭된 요소가 좌석 버튼이 아니고, 예약 버튼도 아닌 경우 드래그 시작
     if (!targetElement.closest('.first_seat') && !targetElement.closest('.reservation-button')) {
       setIsDragging(true);
       const containerRect = containerRef.current?.getBoundingClientRect();
@@ -121,10 +167,11 @@ const FirstFloor: React.FC = () => {
           }
       }
     }
-  }, []); // 의존성 배열 유지
+  }, [isModalOpen]); // isModalOpen 의존성 추가
 
   const handleMouseMove = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
-    if (!isDragging || !startPoint || !containerRef.current) return;
+    // 모달이 열려있을 때는 드래그 동작 중지
+    if (isModalOpen || !isDragging || !startPoint || !containerRef.current) return;
 
     const containerRect = containerRef.current.getBoundingClientRect();
     const currentX = event.clientX - containerRect.left;
@@ -166,7 +213,7 @@ const FirstFloor: React.FC = () => {
     });
     setSelectedSeats(currentSelected); // 임시 선택 상태 업데이트 (MouseUp에서 최종 확정)
 
-  }, [isDragging, startPoint, selectedSeats]); // selectedSeats 추가
+  }, [isDragging, startPoint, selectedSeats, isModalOpen]); // isModalOpen 의존성 추가
 
   const handleMouseUp = useCallback(() => {
     if (isDragging) {
@@ -184,39 +231,44 @@ const FirstFloor: React.FC = () => {
     return () => window.removeEventListener('mouseup', handleGlobalMouseUp);
   }, [isDragging, handleMouseUp]); // isDragging, handleMouseUp 의존성 추가
 
-  // 예약 처리 함수
-  const handleReservation = async () => {
+  // 예약 처리 함수 수정
+  const handleReservation = async (guyok: string) => {
     if (selectedSeats.size === 0) {
       alert('예약할 좌석을 선택해주세요.');
       return;
     }
+    if (!guyok.trim()) {
+      alert('구역명을 입력해주세요.');
+      return;
+    }
+
     setIsLoading(true);
-    const payload = { reserved_guyok: "1층 선택 구역", seat_identifiers: Array.from(selectedSeats) };
+    const payload = { reserved_guyok: guyok, seat_identifiers: Array.from(selectedSeats) };
     
-    // API URL 구성 수정
     const apiUrlBase = process.env.REACT_APP_API_URL || 'http://localhost:8000';
     const fullApiUrl = `${apiUrlBase}/reservations/`;
 
     try {
       const response = await fetch(fullApiUrl, { 
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify(payload)
       });
       if (response.status === 201) {
         const newRes = await response.json();
         const seatIds = newRes.seats && Array.isArray(newRes.seats) ? newRes.seats.map((s: any) => s.seat_identifier).join(', ') : Array.from(selectedSeats).join(', ');
         alert(`예약 성공! ID: ${newRes.id}\n좌석: ${seatIds}`);
         setSelectedSeats(new Set());
+        setIsModalOpen(false);
       } else if (response.status === 409) {
-        const errData = await response.json(); alert(`예약 실패: ${errData.detail}`);
+        const errData = await response.json(); 
+        alert(`예약 실패: ${errData.detail}`);
       } else {
-        // 404 HTML 응답을 더 잘 처리하기 위해 response.text()를 먼저 확인
         const errorText = await response.text();
         try {
-          // JSON 에러 메시지인지 확인
           const errorJson = JSON.parse(errorText);
           alert(`예약 오류: ${response.status} ${errorJson.detail || errorText}`);
         } catch (e) {
-          // JSON이 아니라면 HTML 또는 일반 텍스트로 표시
           alert(`예약 오류: ${response.status} - 서버 응답을 확인해주세요.\n${errorText.substring(0, 200)}...`); 
         }
       }
@@ -317,28 +369,28 @@ const FirstFloor: React.FC = () => {
     return (
       <div className="seat-column" key={col}>
         {Array.from({ length: rows }, (_, row) => {
-          const seatNumber = `1F-${col}-${row + 1}`; // 좌석 식별자에 "1F-" 접두사 추가
+          const seatNumber = `1F-${col}-${row + 1}`;
           const isActuallySelected = selectedSeats.has(seatNumber);
           const isReserved = reservedSeatsFromServer.has(seatNumber);
           return (
             <Seat
               key={seatNumber}
-              seatNumber={seatNumber} // "1F-X-Y" 형식의 좌석 번호 전달
+              seatNumber={seatNumber}
               ref={(el: HTMLButtonElement | null) => setSeatRef(seatNumber, el)}
               isSelected={isActuallySelected}
               isReserved={isReserved}
-              isDisabled={isReserved && !isActuallySelected}
+              isDisabled={isReserved && !isActuallySelected || isModalOpen} // 모달이 열려있을 때도 비활성화
               onClick={() => {
-                if (isReserved) return;
-                 setSelectedSeats(prevSelected => {
-                     const newSelected = new Set(prevSelected);
-                     if (newSelected.has(seatNumber)) {
-                         newSelected.delete(seatNumber);
-                     } else {
-                         newSelected.add(seatNumber);
-                     }
-                     return newSelected;
-                 });
+                if (isReserved || isModalOpen) return; // 모달이 열려있을 때는 클릭 무시
+                setSelectedSeats(prevSelected => {
+                    const newSelected = new Set(prevSelected);
+                    if (newSelected.has(seatNumber)) {
+                        newSelected.delete(seatNumber);
+                    } else {
+                        newSelected.add(seatNumber);
+                    }
+                    return newSelected;
+                });
               }}
             />
           );
@@ -398,18 +450,21 @@ const FirstFloor: React.FC = () => {
       {/* 예약 버튼 추가 */}
       <div style={{ marginTop: '2rem', textAlign: 'center' }}>
         <button 
-          className="reservation-button" // 클래스 추가
-          onClick={handleReservation} 
+          className="reservation-button"
+          onClick={() => setIsModalOpen(true)} 
           disabled={isLoading || selectedSeats.size === 0} 
           style={{ padding: '10px 20px', fontSize: '1rem' }}
         >
           {isLoading ? '예약 중...' : `선택된 좌석 ${selectedSeats.size}개 예약하기`}
         </button>
       </div>
-      {/* 선택된 좌석 목록 표시 (디버깅용) */}
-      {/* <div style={{ marginTop: '1rem', textAlign: 'center' }}>
-        Selected: {Array.from(selectedSeats).join(', ')}
-      </div> */}
+
+      <GuyokInputModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSubmit={handleReservation}
+        selectedSeatsCount={selectedSeats.size}
+      />
     </div>
   );
 };
